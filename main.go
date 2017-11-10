@@ -2,6 +2,7 @@ package main // import "github.com/mojlighetsministeriet/email"
 
 import (
 	"crypto/tls"
+	"net/http"
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
@@ -9,6 +10,8 @@ import (
 	"github.com/mojlighetsministeriet/utils"
 	gomail "gopkg.in/gomail.v2"
 )
+
+// TODO: Add JWT authorization to reatrict sending email to specific internal micro services only
 
 // SMTPSender is used to send emails
 type SMTPSender struct {
@@ -43,14 +46,31 @@ type sendEmailRequest struct {
 	body    string
 }
 
-func sendEmail(conext echo.Context) (err error) {
-	tlsConfig, err := utils.GetCACertificatesTLSConfig()
-	if err != nil {
-		// TODO: log here and return 500
-		return
+var sender SMTPSender
+
+func sendEmail(context echo.Context) (err error) {
+	request := sendEmailRequest{}
+	parseError := context.Bind(&request)
+	if parseError != nil {
+		return context.JSONBlob(http.StatusBadRequest, []byte(`{ "message": "Malformed JSON" }`))
 	}
 
-	sender := SMTPSender{
+	emailError := sender.Send(request.to, request.subject, request.body)
+	if emailError != nil {
+		context.Logger().Error(emailError)
+		return context.JSONBlob(http.StatusInternalServerError, []byte(`{ "message": "Failed to send email" }`))
+	}
+
+	return context.JSONBlob(http.StatusCreated, []byte(`{ "message": "Email was sent" }`))
+}
+
+func main() {
+	tlsConfig, tlsError := utils.GetCACertificatesTLSConfig()
+	if tlsError != nil {
+		panic(tlsError)
+	}
+
+	sender = SMTPSender{
 		Host:      utils.GetEnv("SMTP_HOST", ""),
 		Port:      utils.GetEnvInt("SMTP_PORT", 0),
 		Email:     utils.GetEnv("SMTP_EMAIL", ""),
@@ -58,20 +78,14 @@ func sendEmail(conext echo.Context) (err error) {
 		TLSConfig: tlsConfig,
 	}
 
-	sender.Send(context.Body, get("to"), subject, body)
-
-	return
-}
-
-func main() {
 	service := echo.New()
 	service.Use(middleware.Gzip())
 	service.Logger.SetLevel(log.INFO)
 
 	service.POST("/", sendEmail)
 
-	err := service.Start(":" + utils.GetEnv("PORT", "80"))
-	if err != nil {
-		panic(err)
+	listenError := service.Start(":" + utils.GetEnv("PORT", "80"))
+	if listenError != nil {
+		panic(listenError)
 	}
 }
