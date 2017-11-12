@@ -2,6 +2,7 @@ package main // import "github.com/mojlighetsministeriet/email"
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo"
@@ -41,9 +42,9 @@ func (sender *SMTPSender) Send(to string, subject string, body string) (err erro
 }
 
 type sendEmailRequest struct {
-	to      string
-	subject string
-	body    string
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
 }
 
 var sender SMTPSender
@@ -51,11 +52,14 @@ var sender SMTPSender
 func sendEmail(context echo.Context) (err error) {
 	request := sendEmailRequest{}
 	parseError := context.Bind(&request)
+
+	fmt.Println("request", request)
+
 	if parseError != nil {
 		return context.JSONBlob(http.StatusBadRequest, []byte(`{ "message": "Malformed JSON" }`))
 	}
 
-	emailError := sender.Send(request.to, request.subject, request.body)
+	emailError := sender.Send(request.To, request.Subject, request.Body)
 	if emailError != nil {
 		context.Logger().Error(emailError)
 		return context.JSONBlob(http.StatusInternalServerError, []byte(`{ "message": "Failed to send email" }`))
