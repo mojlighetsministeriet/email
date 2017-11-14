@@ -1,9 +1,7 @@
 package main // import "github.com/mojlighetsministeriet/email"
 
 import (
-	"bytes"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo"
