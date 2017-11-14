@@ -1,7 +1,9 @@
 package main // import "github.com/mojlighetsministeriet/email"
 
 import (
+	"bytes"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo"
@@ -41,21 +43,41 @@ func (sender *SMTPSender) Send(to string, subject string, body string) (err erro
 }
 
 type sendEmailRequest struct {
-	to      string
-	subject string
-	body    string
+	To      string `json:"to" validate:"required,email"`
+	Subject string `json:"subject" validate:"required"`
+	Body    string `json:"body" validate:"required"`
 }
 
 var sender SMTPSender
 
 func sendEmail(context echo.Context) (err error) {
+	fmt.Println("--!!----------------------------------------------------")
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(context.Request().Body)
+	newStr := buf.String()
+	fmt.Println(context.Request().Header.Get("content-type"))
+	fmt.Println(newStr)
+
 	request := sendEmailRequest{}
-	parseError := context.Bind(&request)
+	parseError := context.Bind(request)
+	fmt.Println("parseError:", parseError)
 	if parseError != nil {
 		return context.JSONBlob(http.StatusBadRequest, []byte(`{ "message": "Malformed JSON" }`))
 	}
 
-	emailError := sender.Send(request.to, request.subject, request.body)
+	if err = context.Validate(request); err != nil {
+		return
+	}
+
+	fmt.Println(sender)
+	fmt.Println("---")
+	fmt.Printf("%+v\n", sender.TLSConfig)
+	fmt.Printf("%+v\n", request)
+
+	emailError := sender.Send(request.To, request.Subject, request.Body)
+
+	fmt.Println("emailError", emailError)
+
 	if emailError != nil {
 		context.Logger().Error(emailError)
 		return context.JSONBlob(http.StatusInternalServerError, []byte(`{ "message": "Failed to send email" }`))
@@ -78,7 +100,10 @@ func main() {
 		TLSConfig: tlsConfig,
 	}
 
+	tlsConfig.ServerName = sender.Host
+
 	service := echo.New()
+	service.Validator = utils.NewValidator()
 	service.Use(middleware.Gzip())
 	service.Logger.SetLevel(log.INFO)
 
