@@ -51,9 +51,8 @@ var sender SMTPSender
 
 func sendEmail(context echo.Context) (err error) {
 	request := sendEmailRequest{}
-	parseError := context.Bind(&request)
 
-	if parseError != nil {
+	if err = context.Bind(&request); err != nil {
 		return context.JSONBlob(http.StatusBadRequest, []byte(`{ "message": "Malformed JSON" }`))
 	}
 
@@ -61,10 +60,8 @@ func sendEmail(context echo.Context) (err error) {
 		return
 	}
 
-	emailError := sender.Send(request.To, request.Subject, request.Body)
-
-	if emailError != nil {
-		context.Logger().Error(emailError)
+	if err = sender.Send(request.To, request.Subject, request.Body); err != nil {
+		context.Logger().Error(err)
 		return context.JSONBlob(http.StatusInternalServerError, []byte(`{ "message": "Failed to send email" }`))
 	}
 
