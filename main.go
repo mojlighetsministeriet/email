@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/mojlighetsministeriet/utils"
+	"github.com/mojlighetsministeriet/utils/jsonvalidator"
 	gomail "gopkg.in/gomail.v2"
 )
 
@@ -49,16 +50,9 @@ type sendEmailRequest struct {
 var sender SMTPSender
 
 func sendEmail(context echo.Context) (err error) {
-	fmt.Println("--!!----------------------------------------------------")
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(context.Request().Body)
-	newStr := buf.String()
-	fmt.Println(context.Request().Header.Get("content-type"))
-	fmt.Println(newStr)
-
 	request := sendEmailRequest{}
-	parseError := context.Bind(request)
-	fmt.Println("parseError:", parseError)
+	parseError := context.Bind(&request)
+
 	if parseError != nil {
 		return context.JSONBlob(http.StatusBadRequest, []byte(`{ "message": "Malformed JSON" }`))
 	}
@@ -67,14 +61,7 @@ func sendEmail(context echo.Context) (err error) {
 		return
 	}
 
-	fmt.Println(sender)
-	fmt.Println("---")
-	fmt.Printf("%+v\n", sender.TLSConfig)
-	fmt.Printf("%+v\n", request)
-
 	emailError := sender.Send(request.To, request.Subject, request.Body)
-
-	fmt.Println("emailError", emailError)
 
 	if emailError != nil {
 		context.Logger().Error(emailError)
@@ -101,14 +88,11 @@ func main() {
 	tlsConfig.ServerName = sender.Host
 
 	service := echo.New()
-	service.Validator = utils.NewValidator()
+	service.Validator = jsonvalidator.NewValidator()
 	service.Use(middleware.Gzip())
 	service.Logger.SetLevel(log.INFO)
 
 	service.POST("/", sendEmail)
 
-	listenError := service.Start(":" + utils.GetEnv("PORT", "80"))
-	if listenError != nil {
-		panic(listenError)
-	}
+	service.Logger.Fatal(service.Start(":" + utils.GetEnv("PORT", "80")))
 }
