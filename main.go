@@ -53,7 +53,7 @@ func sendEmail(context echo.Context) (err error) {
 	request := sendEmailRequest{}
 
 	if err = context.Bind(&request); err != nil {
-		return context.JSONBlob(http.StatusBadRequest, []byte(`{ "message": "Malformed JSON" }`))
+		return jsonvalidator.NewMalformedJSONResponse(context)
 	}
 
 	if err = context.Validate(request); err != nil {
