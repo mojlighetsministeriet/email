@@ -85,7 +85,7 @@ func main() {
 	tlsConfig.ServerName = sender.Host
 
 	service := echo.New()
-	service.Validator = jsonvalidator.NewValidator()
+	service.Validator = jsonvalidator.NewValidatorEcho()
 	service.Use(middleware.Gzip())
 	service.Logger.SetLevel(log.INFO)
 
